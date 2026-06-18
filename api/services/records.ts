@@ -39,11 +39,11 @@ export function getAllRecords(vehicleId?: number, month?: string): RepairRecord[
     params.push(vehicleId);
   }
   if (month) {
-    sql += ' AND strftime(\'%Y-%m\', created_at) = ?';
+    sql += ' AND strftime(\'%Y-%m\', start_time) = ?';
     params.push(month);
   }
 
-  sql += ' ORDER BY created_at DESC';
+  sql += ' ORDER BY start_time DESC';
   const rows = db.prepare(sql).all(...params);
   return rows.map((row: any) => rowToRecord(row, getItemsForRecord(row.id)));
 }

@@ -35,12 +35,20 @@ export default function Statistics() {
 
   const totalFaults = faults.reduce((s, f) => s + f.count, 0);
   const totalRecords = mechanics.reduce((s, m) => s + m.totalRecords, 0);
+  const maxRecords = Math.max(...mechanics.map(m => m.totalRecords), 1);
+
+  const mechanicsWithAvg = mechanics.filter(m => m.avgDurationMinutes !== null);
+  const avgAllMinutes = mechanicsWithAvg.length > 0
+    ? Math.round(mechanicsWithAvg.reduce((s, m) => s + (m.avgDurationMinutes || 0), 0) / mechanicsWithAvg.length)
+    : 0;
+
+  const maxRecordsValue = mechanics.reduce((max, m) => Math.max(max, m.totalRecords), 0);
 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="input w-44" />
-        <span className="text-sm text-gray-500">选择月份查看统计</span>
+        <span className="text-sm text-gray-500">按维修开始时间筛选</span>
       </div>
 
       <div className="grid grid-cols-4 gap-5">
@@ -72,7 +80,7 @@ export default function Statistics() {
               <Trophy className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">{mechanics[0]?.totalRecords || 0}</div>
+              <div className="text-2xl font-bold text-gray-900">{maxRecordsValue}</div>
               <div className="text-sm text-gray-500">最高单量</div>
             </div>
           </div>
@@ -83,11 +91,7 @@ export default function Statistics() {
               <Clock className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {mechanics.length > 0
-                  ? Math.round(mechanics.reduce((s, m) => s + m.avgDurationMinutes, 0) / mechanics.length)
-                  : 0}
-              </div>
+              <div className="text-2xl font-bold text-gray-900">{avgAllMinutes || '—'}</div>
               <div className="text-sm text-gray-500">平均耗时 (分钟)</div>
             </div>
           </div>
@@ -148,12 +152,14 @@ export default function Statistics() {
               <div className="space-y-3">
                 {mechanics.map((m, i) => {
                   const medals = ['🥇', '🥈', '🥉'];
-                  const maxRecords = mechanics[0].totalRecords || 1;
+                  const hasAvg = m.avgDurationMinutes !== null;
                   return (
                     <div key={m.mechanicId} className="p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">{medals[i] || <Medal className="w-5 h-5 text-gray-400" />}</span>
+                          <span className="text-xl">
+                            {hasAvg && medals[i] ? medals[i] : <Medal className="w-5 h-5 text-gray-400" />}
+                          </span>
                           <span className="font-semibold text-gray-900">{m.mechanicName}</span>
                         </div>
                         <div className="text-right">
@@ -169,9 +175,9 @@ export default function Statistics() {
                       <div className="flex items-center justify-between text-xs text-gray-500">
                         <span className="inline-flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5" />
-                          平均耗时 {m.avgDurationMinutes} 分钟
+                          {hasAvg ? `平均耗时 ${m.avgDurationMinutes} 分钟` : '暂无完成记录'}
                         </span>
-                        <span>完成率 {(m.totalRecords / maxRecords * 100).toFixed(0)}%</span>
+                        <span>单量占比 {((m.totalRecords / maxRecords) * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                   );

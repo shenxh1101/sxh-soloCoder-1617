@@ -12,7 +12,7 @@ export function getFaultStatistics(month?: string): FaultStat[] {
   const params: any[] = [];
 
   if (month) {
-    sql += ' AND strftime(\'%Y-%m\', rr.created_at) = ?';
+    sql += ' AND strftime(\'%Y-%m\', rr.start_time) = ?';
     params.push(month);
   }
 
@@ -35,29 +35,35 @@ export function getMechanicStatistics(month?: string): MechanicStat[] {
       COUNT(*) as total_records,
       AVG(
         CASE 
-          WHEN start_time IS NOT NULL AND end_time IS NOT NULL 
+          WHEN start_time IS NOT NULL AND end_time IS NOT NULL AND end_time != ''
             THEN (julianday(end_time) - julianday(start_time)) * 24 * 60
           ELSE NULL 
         END
-      ) as avg_duration
+      ) as avg_duration,
+      COUNT(CASE WHEN start_time IS NOT NULL AND end_time IS NOT NULL AND end_time != '' THEN 1 END) as completed_records
     FROM repair_records
     WHERE mechanic_id IS NOT NULL
   `;
   const params: any[] = [];
 
   if (month) {
-    sql += ' AND strftime(\'%Y-%m\', created_at) = ?';
+    sql += ' AND strftime(\'%Y-%m\', start_time) = ?';
     params.push(month);
   }
 
-  sql += ' GROUP BY mechanic_id, mechanic_name ORDER BY total_records DESC, avg_duration ASC';
+  sql += ' GROUP BY mechanic_id, mechanic_name';
   const rows = db.prepare(sql).all(...params) as any[];
 
-  return rows.map(row => ({
+  const withAvg = rows.filter((r: any) => r.avg_duration !== null).sort((a: any, b: any) => a.avg_duration - b.avg_duration);
+  const withoutAvg = rows.filter((r: any) => r.avg_duration === null);
+
+  const sorted = [...withAvg, ...withoutAvg];
+
+  return sorted.map(row => ({
     mechanicId: row.mechanic_id,
     mechanicName: row.mechanic_name || '未命名',
     totalRecords: row.total_records,
-    avgDurationMinutes: row.avg_duration ? Math.round(row.avg_duration) : 0,
+    avgDurationMinutes: row.avg_duration ? Math.round(row.avg_duration) : null as any,
   }));
 }
 
@@ -66,7 +72,7 @@ export function getDashboardStats() {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const monthRecords = (db.prepare(`
-    SELECT COUNT(*) as count FROM repair_records WHERE strftime('%Y-%m', created_at) = ?
+    SELECT COUNT(*) as count FROM repair_records WHERE strftime('%Y-%m', start_time) = ?
   `).get(currentMonth) as { count: number }).count;
 
   const totalVehicles = (db.prepare('SELECT COUNT(*) as count FROM vehicles').get() as { count: number }).count;
@@ -75,19 +81,26 @@ export function getDashboardStats() {
     SELECT COUNT(*) as count FROM repair_records WHERE end_time IS NULL OR end_time = ''
   `).get() as { count: number }).count;
 
-  const maintenanceReminders = db.prepare(`
-    SELECT COUNT(*) as count FROM vehicles WHERE last_maintenance_mileage > 0
-  `).get() as { count: number };
-
   const MAINTENANCE_INTERVAL_KM = 5000;
   const MAINTENANCE_REMIND_THRESHOLD = 1000;
-  const allVehicles = db.prepare('SELECT * FROM vehicles WHERE last_maintenance_mileage > 0').all() as any[];
-  let remindCount = 0;
-  for (const v of allVehicles) {
+
+  const vehicleMileages = db.prepare(`
+    SELECT 
+      v.id,
+      v.last_maintenance_mileage,
+      COALESCE(MAX(rr.mileage), v.last_maintenance_mileage) as current_mileage
+    FROM vehicles v
+    LEFT JOIN repair_records rr ON rr.vehicle_id = v.id
+    WHERE v.last_maintenance_mileage > 0
+    GROUP BY v.id
+  `).all() as any[];
+
+  let maintenanceReminders = 0;
+  for (const v of vehicleMileages) {
     const nextMileage = v.last_maintenance_mileage + MAINTENANCE_INTERVAL_KM;
-    const currentEstimate = v.last_maintenance_mileage + 500;
-    if (nextMileage - currentEstimate <= MAINTENANCE_REMIND_THRESHOLD) {
-      remindCount++;
+    const current = v.current_mileage || v.last_maintenance_mileage;
+    if (nextMileage - current <= MAINTENANCE_REMIND_THRESHOLD) {
+      maintenanceReminders++;
     }
   }
 
@@ -96,18 +109,18 @@ export function getDashboardStats() {
   `).all() as any[];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  let insuranceRemindCount = 0;
+  let insuranceReminders = 0;
   for (const row of insuranceRows) {
     const expiry = new Date(row.insurance_expiry);
     const days = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (days <= 30) insuranceRemindCount++;
+    if (days <= 30) insuranceReminders++;
   }
 
   return {
     monthRecords,
     totalVehicles,
     inProgress,
-    maintenanceReminders: remindCount,
-    insuranceReminders: insuranceRemindCount,
+    maintenanceReminders,
+    insuranceReminders,
   };
 }

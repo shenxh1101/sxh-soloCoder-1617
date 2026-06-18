@@ -7,25 +7,37 @@ const INSURANCE_REMIND_DAYS = 30;
 
 export function getMaintenanceReminders(): MaintenanceReminder[] {
   const rows = db.prepare(`
-    SELECT * FROM vehicles 
-    WHERE last_maintenance_mileage > 0
-    ORDER BY last_maintenance_mileage ASC
+    SELECT 
+      v.id as vehicle_id,
+      v.plate,
+      v.owner_name,
+      v.owner_phone,
+      v.car_model,
+      v.last_maintenance_mileage,
+      v.last_maintenance_date,
+      COALESCE(MAX(rr.mileage), v.last_maintenance_mileage) as current_mileage
+    FROM vehicles v
+    LEFT JOIN repair_records rr ON rr.vehicle_id = v.id
+    WHERE v.last_maintenance_mileage > 0
+    GROUP BY v.id
+    ORDER BY current_mileage DESC
   `).all();
 
   const reminders: MaintenanceReminder[] = [];
   for (const row of rows as any[]) {
-    const nextMileage = row.last_maintenance_mileage + MAINTENANCE_INTERVAL_KM;
-    const currentEstimate = row.last_maintenance_mileage + 500;
-    const remaining = nextMileage - currentEstimate;
+    const lastMileage = row.last_maintenance_mileage || 0;
+    const currentMileage = row.current_mileage || lastMileage;
+    const nextMileage = lastMileage + MAINTENANCE_INTERVAL_KM;
+    const remaining = nextMileage - currentMileage;
 
     if (remaining <= MAINTENANCE_REMIND_THRESHOLD) {
       reminders.push({
-        vehicleId: row.id,
+        vehicleId: row.vehicle_id,
         plate: row.plate,
         ownerName: row.owner_name,
         ownerPhone: row.owner_phone,
         carModel: row.car_model || '',
-        lastMaintenanceMileage: row.last_maintenance_mileage,
+        lastMaintenanceMileage: lastMileage,
         lastMaintenanceDate: row.last_maintenance_date || '',
         nextMaintenanceMileage: nextMileage,
         remainingMileage: remaining,

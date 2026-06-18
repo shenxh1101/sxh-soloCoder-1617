@@ -80,7 +80,7 @@ export interface MechanicStat {
   mechanicId: number;
   mechanicName: string;
   totalRecords: number;
-  avgDurationMinutes: number;
+  avgDurationMinutes: number | null;
 }
 
 export const REPAIR_ITEM_TYPES: { type: RepairItemType; label: string }[] = [
