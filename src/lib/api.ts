@@ -6,6 +6,9 @@ import type {
   InsuranceReminder,
   FaultStat,
   MechanicStat,
+  MaintenanceFollowUp,
+  FollowUpStatus,
+  RevenueStat,
 } from '@shared/types';
 
 const BASE = '/api';
@@ -49,12 +52,21 @@ export const api = {
   reminders: {
     maintenance: () => request<MaintenanceReminder[]>('/reminders/maintenance'),
     insurance: () => request<InsuranceReminder[]>('/reminders/insurance'),
+    createFollowUp: (vehicleId: number, status: FollowUpStatus, note?: string) =>
+      request<MaintenanceFollowUp>('/reminders/follow-ups', {
+        method: 'POST',
+        body: JSON.stringify({ vehicleId, status, note }),
+      }),
+    listFollowUps: (vehicleId: number) =>
+      request<MaintenanceFollowUp[]>(`/reminders/follow-ups/${vehicleId}`),
   },
   statistics: {
     faults: (month?: string) =>
       request<FaultStat[]>('/statistics/faults' + (month ? `?month=${month}` : '')),
     mechanics: (month?: string) =>
       request<MechanicStat[]>('/statistics/mechanics' + (month ? `?month=${month}` : '')),
+    revenue: (month?: string) =>
+      request<RevenueStat>('/statistics/revenue' + (month ? `?month=${month}` : '')),
     dashboard: () =>
       request<{
         monthRecords: number;
@@ -62,6 +74,7 @@ export const api = {
         inProgress: number;
         maintenanceReminders: number;
         insuranceReminders: number;
+        monthRevenue: number;
       }>('/statistics/dashboard'),
   },
 };

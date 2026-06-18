@@ -8,9 +8,11 @@ import {
   Car,
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { MaintenanceReminder, InsuranceReminder } from '@shared/types';
+import { FOLLOW_UP_OPTIONS } from '@shared/types';
+import type { MaintenanceReminder, InsuranceReminder, FollowUpStatus } from '@shared/types';
 
 type Tab = 'maintenance' | 'insurance';
 
@@ -20,12 +22,19 @@ export default function Reminders() {
   const [insurance, setInsurance] = useState<InsuranceReminder[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadMaintenance = () =>
+    api.reminders.maintenance().then(setMaintenance);
+
   useEffect(() => {
-    Promise.all([api.reminders.maintenance(), api.reminders.insurance()]).then(([m, i]) => {
-      setMaintenance(m);
+    Promise.all([loadMaintenance(), api.reminders.insurance()]).then(([, i]) => {
       setInsurance(i);
     }).finally(() => setLoading(false));
   }, []);
+
+  const handleFollowUp = async (vehicleId: number, status: FollowUpStatus) => {
+    await api.reminders.createFollowUp(vehicleId, status);
+    await loadMaintenance();
+  };
 
   return (
     <div className="space-y-5">
@@ -88,10 +97,30 @@ export default function Reminders() {
                       </a>
                     </div>
                   </div>
-                  <a href={`tel:${r.ownerPhone}`} className="btn-accent !py-1.5 !px-3 text-xs">
-                    <PhoneCall className="w-3.5 h-3.5" />
-                    提醒客户
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a href={`tel:${r.ownerPhone}`} className="btn-accent !py-1.5 !px-3 text-xs">
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      提醒客户
+                    </a>
+                    <div className="relative group">
+                      <button className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1">
+                        跟进
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[110px]">
+                        {FOLLOW_UP_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => handleFollowUp(r.vehicleId, opt.value)}
+                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 inline-flex items-center gap-2"
+                          >
+                            <span className={`inline-block w-2 h-2 rounded-full ${opt.color.split(' ')[0]}`} />
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-3 text-center">
                   <div className="bg-gray-50 rounded-lg py-2">
@@ -109,6 +138,15 @@ export default function Reminders() {
                     </div>
                   </div>
                 </div>
+                {r.lastFollowUp && (() => {
+                  const opt = FOLLOW_UP_OPTIONS.find(o => o.value === r.lastFollowUp!.status);
+                  return (
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                      <span className={`badge ${opt?.color || 'bg-gray-100 text-gray-600'}`}>{opt?.label}</span>
+                      <span className="text-xs text-gray-400">{r.lastFollowUp.createdAt.slice(0, 16)}</span>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

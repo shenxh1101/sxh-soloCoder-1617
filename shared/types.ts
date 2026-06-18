@@ -1,5 +1,7 @@
 export type RepairItemType = 'oil' | 'brake' | 'ac' | 'tire' | 'engine' | 'other';
 
+export type FollowUpStatus = 'contacted' | 'next_week' | 'skip';
+
 export interface Vehicle {
   id: number;
   plate: string;
@@ -45,6 +47,14 @@ export interface RepairRecord {
   repairItems: RepairItem[];
 }
 
+export interface MaintenanceFollowUp {
+  id: number;
+  vehicleId: number;
+  status: FollowUpStatus;
+  note: string;
+  createdAt: string;
+}
+
 export interface MaintenanceReminder {
   vehicleId: number;
   plate: string;
@@ -56,6 +66,7 @@ export interface MaintenanceReminder {
   nextMaintenanceMileage: number;
   remainingMileage: number;
   isOverdue: boolean;
+  lastFollowUp?: MaintenanceFollowUp;
 }
 
 export interface InsuranceReminder {
@@ -81,7 +92,22 @@ export interface MechanicStat {
   mechanicName: string;
   totalRecords: number;
   avgDurationMinutes: number | null;
+  totalRevenue: number;
 }
+
+export interface RevenueStat {
+  totalRevenue: number;
+  totalRecords: number;
+  avgRevenue: number;
+  byItem: { type: RepairItemType; name: string; revenue: number; count: number }[];
+  byMechanic: { mechanicId: number; mechanicName: string; revenue: number; records: number }[];
+}
+
+export const FOLLOW_UP_OPTIONS: { value: FollowUpStatus; label: string; color: string }[] = [
+  { value: 'contacted', label: '已联系', color: 'bg-green-100 text-green-700' },
+  { value: 'next_week', label: '下周来', color: 'bg-blue-100 text-blue-700' },
+  { value: 'skip', label: '暂不处理', color: 'bg-gray-100 text-gray-600' },
+];
 
 export const REPAIR_ITEM_TYPES: { type: RepairItemType; label: string }[] = [
   { type: 'oil', label: '换机油' },

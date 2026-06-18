@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Car, Plus, Search, Edit2, Trash2, PhoneCall, FileText, Droplets, CircleDot } from 'lucide-react';
+import { Car, Plus, Search, Edit2, Trash2, PhoneCall, FileText, Droplets, CircleDot, Eye } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Vehicle } from '@shared/types';
 
@@ -137,6 +137,9 @@ export default function Vehicles() {
                   </td>
                   <td className="text-right">
                     <div className="inline-flex items-center gap-1">
+                      <Link to={`/vehicles/${v.id}`} className="btn-secondary !py-1 !px-2 text-xs" title="查看详情">
+                        <Eye className="w-3.5 h-3.5" />
+                      </Link>
                       <Link to={`/records?vehicleId=${v.id}`} className="btn-secondary !py-1 !px-2 text-xs" title="查看维修记录">
                         <FileText className="w-3.5 h-3.5" />
                       </Link>

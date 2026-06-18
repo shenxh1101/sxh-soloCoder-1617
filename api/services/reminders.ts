@@ -1,5 +1,6 @@
 import db from '../db/index.js';
 import type { MaintenanceReminder, InsuranceReminder } from '../../shared/types.js';
+import { getAllLastFollowUps } from './followUps.js';
 
 const MAINTENANCE_INTERVAL_KM = 5000;
 const MAINTENANCE_REMIND_THRESHOLD = 1000;
@@ -23,7 +24,9 @@ export function getMaintenanceReminders(): MaintenanceReminder[] {
     ORDER BY current_mileage DESC
   `).all();
 
+  const followUps = getAllLastFollowUps();
   const reminders: MaintenanceReminder[] = [];
+
   for (const row of rows as any[]) {
     const lastMileage = row.last_maintenance_mileage || 0;
     const currentMileage = row.current_mileage || lastMileage;
@@ -42,6 +45,7 @@ export function getMaintenanceReminders(): MaintenanceReminder[] {
         nextMaintenanceMileage: nextMileage,
         remainingMileage: remaining,
         isOverdue: remaining < 0,
+        lastFollowUp: followUps.get(row.vehicle_id),
       });
     }
   }

@@ -8,12 +8,19 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  PieChart,
+  Pie,
+  Legend,
 } from 'recharts';
-import { BarChart3, Trophy, Clock, Wrench, Medal } from 'lucide-react';
+import { BarChart3, Trophy, Clock, Wrench, Medal, CircleDollarSign, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { FaultStat, MechanicStat } from '@shared/types';
+import type { FaultStat, MechanicStat, RevenueStat } from '@shared/types';
 
 const COLORS = ['#1e3a5f', '#f97316', '#10b981', '#8b5cf6', '#ec4899', '#64748b'];
+
+function formatMoney(value: number): string {
+  return '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
 
 export default function Statistics() {
   const now = new Date();
@@ -21,20 +28,29 @@ export default function Statistics() {
   const [month, setMonth] = useState(defaultMonth);
   const [faults, setFaults] = useState<FaultStat[]>([]);
   const [mechanics, setMechanics] = useState<MechanicStat[]>([]);
+  const [revenue, setRevenue] = useState<RevenueStat | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([api.statistics.faults(month), api.statistics.mechanics(month)])
-      .then(([f, m]) => {
+    Promise.all([
+      api.statistics.faults(month),
+      api.statistics.mechanics(month),
+      api.statistics.revenue(month),
+    ])
+      .then(([f, m, r]) => {
         setFaults(f);
         setMechanics(m);
+        setRevenue(r);
       })
       .finally(() => setLoading(false));
   }, [month]);
 
   const totalFaults = faults.reduce((s, f) => s + f.count, 0);
-  const totalRecords = mechanics.reduce((s, m) => s + m.totalRecords, 0);
+  const totalRecords = revenue?.totalRecords ?? mechanics.reduce((s, m) => s + m.totalRecords, 0);
+  const totalRevenue = revenue?.totalRevenue ?? 0;
+  const avgRevenue = revenue?.avgRevenue ?? 0;
+
   const maxRecords = Math.max(...mechanics.map(m => m.totalRecords), 1);
 
   const mechanicsWithAvg = mechanics.filter(m => m.avgDurationMinutes !== null);
@@ -42,7 +58,8 @@ export default function Statistics() {
     ? Math.round(mechanicsWithAvg.reduce((s, m) => s + (m.avgDurationMinutes || 0), 0) / mechanicsWithAvg.length)
     : 0;
 
-  const maxRecordsValue = mechanics.reduce((max, m) => Math.max(max, m.totalRecords), 0);
+  const sortedMechanicsByRevenue = revenue?.byMechanic ?? [];
+  const maxMechanicRevenue = Math.max(...sortedMechanicsByRevenue.map(m => m.revenue), 1);
 
   return (
     <div className="space-y-5">
@@ -77,23 +94,118 @@ export default function Statistics() {
         <div className="card card-body !p-5">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-green-600" />
+              <CircleDollarSign className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">{maxRecordsValue}</div>
-              <div className="text-sm text-gray-500">最高单量</div>
+              <div className="text-2xl font-bold text-gray-900">{formatMoney(totalRevenue)}</div>
+              <div className="text-sm text-gray-500">本月总收入</div>
             </div>
           </div>
         </div>
         <div className="card card-body !p-5">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-purple-600" />
+              <TrendingUp className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">{avgAllMinutes || '—'}</div>
-              <div className="text-sm text-gray-500">平均耗时 (分钟)</div>
+              <div className="text-2xl font-bold text-gray-900">{formatMoney(avgRevenue)}</div>
+              <div className="text-sm text-gray-500">平均客单价</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div className="card">
+          <div className="card-header">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary-600" />
+              <h2 className="font-semibold text-gray-800">项目收入分布</h2>
+            </div>
+          </div>
+          <div className="card-body">
+            {loading ? (
+              <div className="h-72 flex items-center justify-center">
+                <div className="animate-spin w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full" />
+              </div>
+            ) : !revenue || revenue.byItem.length === 0 ? (
+              <div className="h-72 flex items-center justify-center text-gray-400">本月暂无数据</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={288}>
+                <PieChart>
+                  <Pie
+                    data={revenue.byItem}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    innerRadius={50}
+                    dataKey="revenue"
+                    nameKey="name"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+                  >
+                    {revenue.byItem.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatMoney(value)}
+                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-amber-500" />
+              <h2 className="font-semibold text-gray-800">师傅收入排行榜</h2>
+            </div>
+          </div>
+          <div className="card-body">
+            {loading ? (
+              <div className="h-72 flex items-center justify-center">
+                <div className="animate-spin w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full" />
+              </div>
+            ) : !revenue || revenue.byMechanic.length === 0 ? (
+              <div className="h-72 flex items-center justify-center text-gray-400">本月暂无数据</div>
+            ) : (
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {sortedMechanicsByRevenue.map((m, i) => {
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const percent = (m.revenue / maxMechanicRevenue) * 100;
+                  return (
+                    <div key={m.mechanicId} className="p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">
+                            {medals[i] ? medals[i] : <Medal className="w-5 h-5 text-gray-400" />}
+                          </span>
+                          <span className="font-semibold text-gray-900">{m.mechanicName}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-green-600">{formatMoney(m.revenue)}</div>
+                        </div>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                        <div
+                          className="h-full bg-gradient-to-r from-green-500 to-green-700 rounded-full transition-all"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>{m.records} 单</span>
+                        <span>收入占比 {percent.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

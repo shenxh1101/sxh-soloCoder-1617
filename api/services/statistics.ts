@@ -1,5 +1,5 @@
 import db from '../db/index.js';
-import type { FaultStat, MechanicStat, RepairItemType } from '../../shared/types.js';
+import type { FaultStat, MechanicStat, RepairItemType, RevenueStat } from '../../shared/types.js';
 import { REPAIR_ITEM_TYPES } from '../../shared/types.js';
 
 export function getFaultStatistics(month?: string): FaultStat[] {
@@ -40,7 +40,7 @@ export function getMechanicStatistics(month?: string): MechanicStat[] {
           ELSE NULL 
         END
       ) as avg_duration,
-      COUNT(CASE WHEN start_time IS NOT NULL AND end_time IS NOT NULL AND end_time != '' THEN 1 END) as completed_records
+      SUM(total_cost) as total_revenue
     FROM repair_records
     WHERE mechanic_id IS NOT NULL
   `;
@@ -63,8 +63,66 @@ export function getMechanicStatistics(month?: string): MechanicStat[] {
     mechanicId: row.mechanic_id,
     mechanicName: row.mechanic_name || '未命名',
     totalRecords: row.total_records,
-    avgDurationMinutes: row.avg_duration ? Math.round(row.avg_duration) : null as any,
+    avgDurationMinutes: row.avg_duration ? Math.round(row.avg_duration) : null,
+    totalRevenue: row.total_revenue || 0,
   }));
+}
+
+export function getRevenueStatistics(month?: string): RevenueStat {
+  const params: any[] = [];
+  let where = 'WHERE 1=1';
+  if (month) {
+    where = 'WHERE strftime(\'%Y-%m\', start_time) = ?';
+    params.push(month);
+  }
+
+  const totals = (db.prepare(`
+    SELECT SUM(total_cost) as total_revenue, COUNT(*) as total_records
+    FROM repair_records
+    ${where}
+  `).get(...params) as { total_revenue: number; total_records: number }) || { total_revenue: 0, total_records: 0 };
+
+  const byItemRows = db.prepare(`
+    SELECT ri.type, SUM(ri.cost) as revenue, COUNT(*) as count
+    FROM repair_items ri
+    JOIN repair_records rr ON ri.record_id = rr.id
+    ${where}
+    GROUP BY ri.type
+    ORDER BY revenue DESC
+  `).all(...params) as any[];
+
+  const typeToName = new Map(REPAIR_ITEM_TYPES.map(t => [t.type, t.label]));
+  const byItem = byItemRows.map(row => ({
+    type: row.type as RepairItemType,
+    name: typeToName.get(row.type as RepairItemType) || row.type,
+    revenue: row.revenue || 0,
+    count: row.count,
+  }));
+
+  let byMechanicWhere = where + ' AND mechanic_id IS NOT NULL';
+  const mechanicParams = [...params];
+  const byMechanicRows = db.prepare(`
+    SELECT mechanic_id, mechanic_name, SUM(total_cost) as revenue, COUNT(*) as records
+    FROM repair_records
+    ${byMechanicWhere}
+    GROUP BY mechanic_id, mechanic_name
+    ORDER BY revenue DESC
+  `).all(...mechanicParams) as any[];
+
+  const byMechanic = byMechanicRows.map(row => ({
+    mechanicId: row.mechanic_id,
+    mechanicName: row.mechanic_name || '未命名',
+    revenue: row.revenue || 0,
+    records: row.records,
+  }));
+
+  return {
+    totalRevenue: totals.total_revenue || 0,
+    totalRecords: totals.total_records || 0,
+    avgRevenue: totals.total_records > 0 ? (totals.total_revenue || 0) / totals.total_records : 0,
+    byItem,
+    byMechanic,
+  };
 }
 
 export function getDashboardStats() {
@@ -116,11 +174,16 @@ export function getDashboardStats() {
     if (days <= 30) insuranceReminders++;
   }
 
+  const monthRevenue = (db.prepare(`
+    SELECT COALESCE(SUM(total_cost), 0) as revenue FROM repair_records WHERE strftime('%Y-%m', start_time) = ?
+  `).get(currentMonth) as { revenue: number }).revenue;
+
   return {
     monthRecords,
     totalVehicles,
     inProgress,
     maintenanceReminders,
     insuranceReminders,
+    monthRevenue,
   };
 }

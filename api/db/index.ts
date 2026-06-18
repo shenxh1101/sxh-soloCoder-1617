@@ -67,9 +67,19 @@ export function initDb() {
       FOREIGN KEY (record_id) REFERENCES repair_records(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS maintenance_follow_ups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vehicle_id INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      note TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON vehicles(plate);
     CREATE INDEX IF NOT EXISTS idx_records_vehicle ON repair_records(vehicle_id);
-    CREATE INDEX IF NOT EXISTS idx_records_created ON repair_records(created_at);
+    CREATE INDEX IF NOT EXISTS idx_records_start ON repair_records(start_time);
+    CREATE INDEX IF NOT EXISTS idx_followups_vehicle ON maintenance_follow_ups(vehicle_id);
   `);
 
   const mechanicCount = db.prepare('SELECT COUNT(*) as count FROM mechanics').get() as { count: number };

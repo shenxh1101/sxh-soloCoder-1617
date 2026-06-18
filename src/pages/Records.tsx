@@ -74,8 +74,8 @@ export default function Records() {
               {records.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <div className="text-gray-900">{r.createdAt.slice(0, 10)}</div>
-                    <div className="text-xs text-gray-400">{r.createdAt.slice(11, 16)}</div>
+                    <div className="text-gray-900">{r.startTime.slice(0, 10)}</div>
+                    <div className="text-xs text-gray-400">{r.startTime.slice(11, 16)}</div>
                   </td>
                   <td className="font-semibold text-gray-900">{r.plate}</td>
                   <td className="text-gray-600">{r.mileage.toLocaleString()} km</td>

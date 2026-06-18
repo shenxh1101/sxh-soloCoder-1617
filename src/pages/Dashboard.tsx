@@ -37,6 +37,7 @@ export default function Dashboard() {
 
   const statCards = stats ? [
     { label: '本月维修', value: stats.monthRecords, icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: '本月收入', value: `¥${stats.monthRevenue.toFixed(0)}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: '车辆总数', value: stats.totalVehicles, icon: Car, color: 'text-green-600', bg: 'bg-green-50' },
     { label: '保养待提醒', value: stats.maintenanceReminders, icon: Bell, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: '保险到期提醒', value: stats.insuranceReminders, icon: ShieldAlert, color: 'text-red-600', bg: 'bg-red-50' },
@@ -73,7 +74,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-5 gap-5">
         {statCards.map((item, i) => {
           const Icon = item.icon;
           return (

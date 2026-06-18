@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getFaultStatistics, getMechanicStatistics, getDashboardStats } from '../services/statistics.js';
+import { getFaultStatistics, getMechanicStatistics, getDashboardStats, getRevenueStatistics } from '../services/statistics.js';
 
 const router = Router();
 
@@ -12,6 +12,12 @@ router.get('/faults', (req, res) => {
 router.get('/mechanics', (req, res) => {
   const month = req.query.month as string | undefined;
   const stats = getMechanicStatistics(month);
+  res.json(stats);
+});
+
+router.get('/revenue', (req, res) => {
+  const month = req.query.month as string | undefined;
+  const stats = getRevenueStatistics(month);
   res.json(stats);
 });
 
